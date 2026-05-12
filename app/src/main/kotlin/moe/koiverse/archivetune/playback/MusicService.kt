@@ -3742,7 +3742,7 @@ class MusicService :
 
         val eventIdSnapshot = currentHistoryEventId
         val remoteRegisteredSnapshot = currentHistoryRemoteRegistered
-        val mediaMetadataSnapshot = player.currentMetadata?.takeIf { it.id == mediaId }
+        val mediaMetadataSnapshot = player.currentMetadata
 
         val deferred = scope.async {
             withContext(Dispatchers.IO) {
@@ -3752,7 +3752,7 @@ class MusicService :
                         playTimeMs = playedMs,
                         mediaMetadata = mediaMetadataSnapshot,
                     )
-                val remoteRegistered = remoteRegisteredSnapshot || registerRemotePlaybackHistory(mediaId)
+                val remoteRegistered = remoteRegisteredSnapshot || registerRemotePlaybackHistory(mediaId, mediaMetadataSnapshot)
                 ImmediateHistoryResult(
                     eventId = resolvedEventId,
                     remoteRegistered = remoteRegistered,
@@ -3811,8 +3811,12 @@ class MusicService :
         }
     }
 
-    private suspend fun registerRemotePlaybackHistory(mediaId: String): Boolean {
-        if (database.song(mediaId).first()?.song?.isLocal == true) {
+    private suspend fun registerRemotePlaybackHistory(
+        mediaId: String,
+        mediaMetadata: moe.koiverse.archivetune.models.MediaMetadata? = null,
+    ): Boolean {
+        val remoteMediaId = mediaMetadata?.setVideoId?.trim()?.takeIf { it.isNotEmpty() } ?: mediaId
+        if (remoteMediaId == mediaId && database.song(mediaId).first()?.song?.isLocal == true) {
             return false
         }
 
@@ -3832,7 +3836,7 @@ class MusicService :
                         Timber.tag("MusicService").w(
                             throwable,
                             "Failed to register remote playback history for %s",
-                            mediaId,
+                            remoteMediaId,
                         )
                     }
                 }
@@ -3840,10 +3844,10 @@ class MusicService :
         }
 
         val playbackUrl =
-            database.format(mediaId).first()?.playbackUrl
+            database.format(remoteMediaId).first()?.playbackUrl
                 ?.takeIf { it.isNotBlank() }
                 ?: retryWithoutPlaybackLoginContext {
-                    YTPlayerUtils.playerResponseForMetadata(mediaId)
+                    YTPlayerUtils.playerResponseForMetadata(remoteMediaId)
                 }.onFailure { throwable ->
                     when (throwable) {
                         is YTPlayerUtils.InvalidPlaybackLoginContextException -> {
@@ -3858,7 +3862,7 @@ class MusicService :
                             Timber.tag("MusicService").w(
                                 throwable,
                                 "Failed to refresh remote playback tracking for %s",
-                                mediaId,
+                                remoteMediaId,
                             )
                         }
                     }
@@ -4865,7 +4869,7 @@ class MusicService :
                 }
 
                 if (pendingResult?.remoteRegistered != true) {
-                    registerRemotePlaybackHistory(mediaId)
+                    registerRemotePlaybackHistory(mediaId, fallbackMetadata)
                 }
             }
 
