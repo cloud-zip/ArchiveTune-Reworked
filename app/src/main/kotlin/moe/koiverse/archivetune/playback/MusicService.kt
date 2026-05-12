@@ -3742,7 +3742,7 @@ class MusicService :
 
         val eventIdSnapshot = currentHistoryEventId
         val remoteRegisteredSnapshot = currentHistoryRemoteRegistered
-        val mediaMetadataSnapshot = player.currentMetadata?.takeIf { it.id == mediaId }
+        val mediaMetadataSnapshot = player.currentMetadata
 
         val deferred = scope.async {
             withContext(Dispatchers.IO) {
